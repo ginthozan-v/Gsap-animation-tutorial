@@ -1,8 +1,11 @@
-import React, { useRef, useState } from 'react';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
+import { ScrollTrigger } from 'gsap/all';
+gsap.registerPlugin(ScrollTrigger);
+import { useEffect, useRef, useState } from 'react';
+
 import { hightlightsSlides } from '../constants';
 import { pauseImg, playImg, replayImg } from '../utils';
-import { useGSAP } from '@gsap/react';
-import gsap from 'gsap';
 
 const VideoCarousel = () => {
   const videoRef = useRef([]);
@@ -21,6 +24,12 @@ const VideoCarousel = () => {
   const { isEnd, isLastVideo, startPlay, videoId, isPlaying } = video;
 
   useGSAP(() => {
+    gsap.to('#slider', {
+      transform: `translateX(${-100 * videoId}%)`,
+      duration: 2,
+      ease: 'power2.inOut',
+    });
+
     gsap.to('#video', {
       scrollTrigger: {
         trigger: '#video',
@@ -37,6 +46,67 @@ const VideoCarousel = () => {
   }, [isEnd, videoId]);
 
   useEffect(() => {
+    let currentProgress = 0;
+    let span = videoSpanRef.current;
+
+    if (span[videoId]) {
+      //animate the progress of video
+      let anim = gsap.to(span[videoId], {
+        onUpdate: () => {
+          const progress = Math.ceil(anim.progress() * 100);
+
+          if (progress != currentProgress) {
+            currentProgress = progress;
+
+            gsap.to(videoDivRef.current[videoId], {
+              width:
+                window.innerWidth < 760
+                  ? '10vw' // mobile
+                  : window.innerWidth < 1200
+                  ? '10vw' // tablet
+                  : '4vw', // laptop
+            });
+
+            gsap.to(span[videoId], {
+              width: `${currentProgress}%`,
+              backgroundColor: 'white',
+            });
+          }
+        },
+        onComplete: () => {
+          if (isPlaying) {
+            gsap.to(videoDivRef.current[videoId], {
+              width: '12px',
+            });
+            gsap.to(span[videoId], {
+              backgroundColor: '#afafaf',
+            });
+          }
+        },
+      });
+
+      if (videoId == 0) {
+        anim.restart();
+      }
+
+      const animUpdate = () => {
+        anim.progress(
+          videoRef.current[videoId].currentTime /
+            hightlightsSlides[videoId].videoDuration
+        );
+      };
+
+      if (isPlaying) {
+        // ticker to update the progress bar
+        gsap.ticker.add(animUpdate);
+      } else {
+        // remove the ticker when the video is paused (progress bar is stopped)
+        gsap.ticker.remove(animUpdate);
+      }
+    }
+  }, [videoId, startPlay]);
+
+  useEffect(() => {
     if (loadedData.length > 3) {
       if (!isPlaying) {
         videoRef.current[videoId].pause();
@@ -45,21 +115,6 @@ const VideoCarousel = () => {
       }
     }
   }, [startPlay, videoId, isPlaying, loadedData]);
-
-  const handleLoadedMetaData = (i, e) => setLoadedData((pre) => [...pre, e]);
-
-  useEffect(() => {
-    const currentProcess = 0;
-    let span = videoSpanRef.current;
-
-    if (span[videoId]) {
-      //animate the progress of video
-      let anim = gsap.to(span[videoId], {
-        onUpdate: () => {},
-        onComplete: () => {},
-      });
-    }
-  }, [videoId, startPlay]);
 
   const handleProcess = (type, i) => {
     switch (type) {
@@ -87,6 +142,8 @@ const VideoCarousel = () => {
         return video;
     }
   };
+
+  const handleLoadedMetaData = (i, e) => setLoadedData((pre) => [...pre, e]);
 
   return (
     <>
